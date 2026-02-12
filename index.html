@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Siete Vidas Dulces - Dashboard</title>
+    <style>
+        :root { 
+            --rojo-principal: #d32f2f; 
+            --rojo-pastel: #ff8a80;    
+            --rojo-oscuro: #9a0007;
+            --fondo-crema: #fff5f2;    
+            --blanco: #ffffff;
+            --gris-texto: #4e342e;     
+            --borde-suave: #f8bbd0;
+        }
+        
+        body { background: var(--fondo-crema); font-family: 'Segoe UI', sans-serif; margin: 0; padding: 20px; display: flex; justify-content: center; color: var(--gris-texto); }
+        #app { display: flex; gap: 20px; max-width: 1450px; width: 100%; height: 95vh; }
+        
+        #tienda { flex: 2.5; background: var(--blanco); padding: 25px; border-radius: 25px; overflow-y: auto; box-shadow: 0 10px 30px rgba(211, 47, 47, 0.05); border-top: 8px solid var(--rojo-principal); }
+        .grid-dulces { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; }
+        
+        .card { 
+            background: #fff; border: 1px solid var(--borde-suave); padding: 15px; border-radius: 18px; 
+            text-align: center; transition: 0.3s; display: flex; flex-direction: column; justify-content: space-between;
+        }
+        .card:hover { border-color: var(--rojo-principal); transform: translateY(-3px); box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+        .card span { font-weight: bold; font-size: 0.9em; color: var(--gris-texto); margin-bottom: 8px; display: block; height: 35px; overflow: hidden; }
+        .card b { color: var(--rojo-principal); font-size: 0.8em; display: block; margin-bottom: 10px; }
+        
+        #panel { flex: 1; display: flex; flex-direction: column; gap: 20px; min-width: 320px; }
+        .seccion { background: var(--blanco); padding: 20px; border-radius: 25px; border: 1px solid var(--borde-suave); }
+        #contenedor-carrito { display: none; margin-top: 10px; max-height: 300px; overflow-y: auto; }
+        
+        #chat-box { height: 350px; overflow-y: auto; background: #fffcfc; border-radius: 15px; padding: 10px; border: 1px solid var(--rojo-pastel); margin-bottom: 10px; font-size: 0.9em; }
+        
+        button { background: var(--rojo-pastel); color: white; border: none; padding: 10px; border-radius: 12px; cursor: pointer; font-weight: bold; transition: 0.3s; width: 100%; }
+        button:hover { background: var(--rojo-principal); }
+        
+        input, select { width: 100%; padding: 8px; border: 1px solid var(--borde-suave); border-radius: 10px; outline: none; box-sizing: border-box; margin-top: 5px; color: var(--gris-texto); }
+        h2, h3 { color: var(--rojo-oscuro); margin-top: 0; text-align: center; }
+        
+        .item-carrito { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px dotted var(--borde-suave); font-size: 0.85em; }
+        .controles-item { display: flex; gap: 5px; align-items: center; }
+        .btn-mini { width: 25px !important; padding: 2px !important; font-size: 12px; background: #fce4ec; color: var(--rojo-principal); border: 1px solid var(--rojo-pastel); }
+        
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: var(--rojo-pastel); border-radius: 10px; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <section id="tienda">
+            <h2>🐈‍⬛ Siete Vidas Dulces 🍬</h2>
+            <div class="grid-dulces" id="contenedor-grid"></div>
+        </section>
+
+        <div id="panel">
+            <section class="seccion">
+                <h3>🛍️ Mi Pedido</h3>
+                <button onclick="toggleCarrito()" style="background: var(--gris-texto); color: white;">🛒 Ver Carrito</button>
+                <div id="contenedor-carrito">
+                    <div id="lista-compras"></div>
+                    <hr style="border: 0; border-top: 1px solid var(--borde-suave);">
+                    <p>Total: <b style="color: var(--rojo-principal);">$<span id="total-precio">0.00</span></b></p>
+                    <button onclick="finalizarCompra()" style="background: var(--rojo-principal); color: white;">✅ Finalizar y Generar Token</button>
+                    <button onclick="vaciarCarrito()" style="background: none; color: #999; font-size: 0.7em; border: none; margin-top: 5px;">Vaciar sin comprar</button>
+                </div>
+            </section>
+
+            <section class="seccion">
+                <h3>💬 Ayudante 🐈‍⬛</h3>
+                <div id="chat-box"></div>
+                <form id="chat-form" style="display:flex; gap:5px;">
+                    <input type="text" id="user-input" placeholder="¿Tienes borrachitos?..." required style="width: 75%;">
+                    <button type="submit" style="width:25%;">🚀</button>
+                </form>
+            </section>
+        </div>
+    </div>
+
+    <script>
+        // CONFIGURACIÓN DE TOKENS IA
+        const API_URL = "https://api.groq.com/openai/v1/chat/completions";
+        const TOKENS = {
+            A: "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",
+            B: "TU_SEGUNDO_TOKEN_AQUI" 
+        };
+        let tokenActual = TOKENS.A;
+
+        let carrito = [];
+
+        // BASE DE DATOS DE 30 DULCES
+        const productos = [
+            { n: "Mazapán De la Rosa", s: 6, b: 130 }, { n: "Pelón Pelo Rico", s: 12, b: 110 },
+            { n: "Pulparindo", s: 5, b: 85 }, { n: "Alegría Amaranto", s: 15, b: 140 },
+            { n: "Borrachitos", s: 2, b: 45 }, { n: "Rockaleta", s: 8, b: 150 },
+            { n: "Obleas con Cajeta", s: 18, b: 160 }, { n: "Palanqueta Nuez", s: 22, b: 200 },
+            { n: "Cocada Blanca", s: 18, b: 170 }, { n: "Manzana Chamoy", s: 35, b: 300 },
+            { n: "Ate de Membrillo", s: 40, b: 380 }, { n: "Puerquito de Pan", s: 12, b: 110 },
+            { n: "Duvalín Bisabor", s: 7, b: 120 }, { n: "Chicles Canel's", s: 2, b: 90 },
+            { n: "Pica Fresa", s: 1, b: 70 }, { n: "Skwinkles Rellenos", s: 14, b: 135 },
+            { n: "Lucas Muecas", s: 15, b: 145 }, { n: "Glorias Linares", s: 12, b: 210 },
+            { n: "Jamoncillo Leche", s: 25, b: 230 }, { n: "Camote Puebla", s: 20, b: 180 },
+            { n: "Muégano Tradicional", s: 10, b: 95 }, { n: "Limón con Coco", s: 15, b: 140 },
+            { n: "Chocomelvavisco", s: 10, b: 180 }, { n: "Barra Chocolate", s: 22, b: 350 },
+            { n: "Vaso de Cajeta", s: 8, b: 150 }, { n: "Piruleta Rayada", s: 6, b: 110 },
+            { n: "Galleta Sol", s: 5, b: 90 }, { n: "Morelianas", s: 15, b: 140 },
+            { n: "Tama-Roca", s: 10, b: 95 }, { n: "Bandera de Coco", s: 15, b: 140 }
+        ];
+
+        // INICIALIZAR TIENDA
+        const grid = document.getElementById("contenedor-grid");
+        productos.forEach((p, i) => {
+            const card = document.createElement("div");
+            card.className = "card";
+            card.innerHTML = `
+                <span>${p.n}</span>
+                <b>Pz: $${p.s} | Bol: $${p.b}</b>
+                <select id="modo-${i}"><option value="Pieza">Pieza</option><option value="Bolsa">Bolsa</option></select>
+                <input type="number" id="cant-${i}" value="1" min="1">
+                <button onclick="agregarAlPedido(${i})">🛒 Agregar</button>
+            `;
+            grid.appendChild(card);
+        });
+
+        function toggleCarrito() {
+            const div = document.getElementById("contenedor-carrito");
+            div.style.display = (div.style.display === "block") ? "none" : "block";
+        }
+
+        function agregarAlPedido(idx) {
+            const p = productos[idx];
+            const modo = document.getElementById(`modo-${idx}`).value;
+            const cant = parseInt(document.getElementById(`cant-${idx}`).value);
+            const precio = (modo === "Bolsa") ? p.b : p.s;
+            const etiqueta = (modo === "Bolsa") ? "Bol" : "Pz";
+
+            if (cant > 0) {
+                const existente = carrito.find(item => item.nombre === p.n && item.tipo === etiqueta);
+                if (existente) existente.cantidad += cant;
+                else carrito.push({ nombre: p.n, precio: precio, cantidad: cant, tipo: etiqueta });
+                renderizarCarrito();
+                document.getElementById("contenedor-carrito").style.display = "block";
+            }
+        }
+
+        function editarCantidad(index, delta) {
+            carrito[index].cantidad += delta;
+            if (carrito[index].cantidad <= 0) carrito.splice(index, 1);
+            renderizarCarrito();
+        }
+
+        function eliminarItem(index) { carrito.splice(index, 1); renderizarCarrito(); }
+        function vaciarCarrito() { carrito = []; renderizarCarrito(); }
+
+        function renderizarCarrito() {
+            const lista = document.getElementById("lista-compras");
+            const totalSpan = document.getElementById("total-precio");
+            lista.innerHTML = "";
+            let total = 0;
+            carrito.forEach((item, index) => {
+                total += item.precio * item.cantidad;
+                const div = document.createElement("div");
+                div.className = "item-carrito";
+                div.innerHTML = `
+                    <span>${item.cantidad}x ${item.nombre.split(' ')[0]}</span>
+                    <div class="controles-item">
+                        <button class="btn-mini" onclick="editarCantidad(${index}, 1)">+</button>
+                        <button class="btn-mini" onclick="editarCantidad(${index}, -1)">-</button>
+                        <button onclick="eliminarItem(${index})" style="background:none; color:red; border:none; cursor:pointer;">✕</button>
+                    </div>
+                `;
+                lista.appendChild(div);
+            });
+            totalSpan.innerText = total.toFixed(2);
+        }
+
+        // --- LÓGICA DE TOKEN DE COMPRA ---
+        function finalizarCompra() {
+            if (carrito.length === 0) return alert("¡Carrito vacío, patrón!");
+            
+            const token = "SV-" + Math.random().toString(36).substr(2, 6).toUpperCase() + "-🐈‍⬛";
+            const total = document.getElementById("total-precio").innerText;
+
+            const box = document.getElementById("chat-box");
+            box.innerHTML += `
+                <div style="background: #fff3e0; border: 1px dashed var(--rojo-principal); padding: 10px; border-radius: 10px; margin: 10px 0;">
+                    <p style="margin:0; font-size: 0.85em;">
+                        <b>Dulcero 🐈‍⬛:</b> ¡Órale! Pedido registrado. Tu Token es: <b>${token}</b>. Guárdalo bien carnal 🍬.
+                    </p>
+                </div>`;
+            box.scrollTop = box.scrollHeight;
+            
+            alert(`¡Gracias! Folio: ${token}\nTotal: $${total}`);
+            vaciarCarrito();
+        }
+
+        // --- CHAT IA CON DOBLE TOKEN ---
+        document.getElementById("chat-form").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const input = document.getElementById("user-input");
+            const box = document.getElementById("chat-box");
+            const msg = input.value;
+            box.innerHTML += `<p><b>Tú:</b> ${msg}</p>`;
+            input.value = "";
+
+            const contextIA = productos.map(p => `${p.n}: Pz $${p.s}/Bol $${p.b}`).join(", ");
+
+            async function pedirIA(key) {
+                return await fetch(API_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + key },
+                    body: JSON.stringify({
+                        model: "llama-3.3-70b-versatile",
+                        messages: [{ 
+                            role: "system", 
+                            content: `Eres el encargado de "Siete Vidas Dulces". CATÁLOGO: ${contextIA}. 1. Si el dulce NO está en la lista anterior, di que "no ha llegado" o "está agotado". 2. Responde corto con actitud mexicana y usa emojis de gato negro 🐈‍⬛.` 
+                        }, { role: "user", content: msg }]
+                    })
+                });
+            }
+
+            try {
+                let res = await pedirIA(tokenActual);
+                if (!res.ok) {
+                    tokenActual = (tokenActual === TOKENS.A) ? TOKENS.B : TOKENS.A;
+                    res = await pedirIA(tokenActual);
+                }
+                const data = await res.json();
+                box.innerHTML += `<p style="color:var(--rojo-oscuro)"><b>Dulcero 🐈‍⬛:</b> ${data.choices[0].message.content}</p>`;
+                box.scrollTop = box.scrollHeight;
+            } catch (err) { box.innerHTML += "<p>Híjole, ando fuera de servicio 🐈‍⬛.</p>"; }
+        });
+    </script>
+</body>
+</html>
